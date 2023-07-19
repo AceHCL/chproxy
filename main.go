@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"github.com/contentsquare/chproxy/tcp"
 	"net"
 	"net/http"
 	"os"
@@ -73,6 +74,9 @@ func main() {
 	}
 	if len(server.HTTP.ListenAddr) != 0 {
 		go serve(server.HTTP)
+	}
+	if len(server.TCP.ListenAddr) != 0 {
+		go serveTCP(server.TCP)
 	}
 
 	select {}
@@ -194,6 +198,26 @@ func listenAndServe(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) erro
 	return s.Serve(ln)
 }
 
+func serveTCP(cfg config.TCP) {
+	var h tcp.Handler
+	ln := newListener(cfg.ListenAddr)
+
+	h = tcp.HandlerFunc(serveTCPHandler)
+	if err := listenAndServeTCP(ln, h, cfg.TimeoutCfg); err != nil {
+		log.Fatalf("TCP server error on %q: %s", cfg.ListenAddr, err)
+	}
+	log.Infof("Serving tcp on %q", cfg.ListenAddr)
+}
+func listenAndServeTCP(ln net.Listener, h tcp.Handler, cfg config.TimeoutCfg) error {
+	serverTCP := newServerTCP(ln, h, cfg)
+	return serverTCP.Serve(ln)
+}
+func newServerTCP(ln net.Listener, h tcp.Handler, cfg config.TimeoutCfg) *tcp.Server {
+	return &tcp.Server{
+		h,
+	}
+}
+
 var promHandler = promhttp.Handler()
 
 //nolint:cyclop //TODO reduce complexity here.
@@ -253,6 +277,11 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Connection", "close")
 		respondWith(rw, err, http.StatusBadRequest)
 	}
+}
+
+func serveTCPHandler(conn *tcp.Conn) {
+	//调用处理函数
+	proxy.ServeTCP(conn)
 }
 
 func loadConfig() (*config.Config, error) {

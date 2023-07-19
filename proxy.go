@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/contentsquare/chproxy/tcp"
+	"github.com/contentsquare/chproxy/tcputil"
 	"io"
 	"io/ioutil"
 	"net"
@@ -31,6 +33,9 @@ const failedTransactionPrefix = "[concurrent query failed]"
 
 type reverseProxy struct {
 	rp *httputil.ReverseProxy
+
+	//add tcp proxy
+	trp *tcputil.ReverseProxy
 
 	// configLock serializes access to applyConfig.
 	// It protects reload* fields.
@@ -78,11 +83,17 @@ func newReverseProxy(cfgCp *config.ConnectionPool) *reverseProxy {
 			// are handled and logged in the code below.
 			ErrorLog: log.NilLogger,
 		},
+		trp:                 &tcputil.ReverseProxy{},
 		reloadSignal:        make(chan struct{}),
 		reloadWG:            sync.WaitGroup{},
 		maxIdleConns:        cfgCp.MaxIdleConnsPerHost,
 		maxIdleConnsPerHost: cfgCp.MaxIdleConnsPerHost,
 	}
+}
+
+func (rp *reverseProxy) ServeTCP(conn *tcp.Conn) {
+	//get scope
+	rp.trp.ServeTCP(conn)
 }
 
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {

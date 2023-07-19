@@ -240,6 +240,9 @@ type Server struct {
 	// Optional TLS configuration
 	HTTPS HTTPS `yaml:"https,omitempty"`
 
+	// Optional TCP configuration
+	TCP TCP `yaml:"tcp,omitempty"`
+
 	// Optional metrics handler configuration
 	Metrics Metrics `yaml:"metrics,omitempty"`
 
@@ -311,6 +314,50 @@ func (c *HTTP) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 func (c *HTTP) validate() error {
+	if c.ReadTimeout == 0 {
+		c.ReadTimeout = Duration(time.Minute)
+	}
+
+	if c.IdleTimeout == 0 {
+		c.IdleTimeout = Duration(time.Minute * 10)
+	}
+
+	return nil
+}
+
+// TCP describes configuration for server to listen HTTP connections
+type TCP struct {
+	// TCP address to listen to for http
+	ListenAddr string `yaml:"listen_addr"`
+
+	NetworksOrGroups NetworksOrGroups `yaml:"allowed_networks,omitempty"`
+
+	// List of networks that access is allowed from
+	// Each list item could be IP address or subnet mask
+	// if omitted or zero - no limits would be applied
+	AllowedNetworks Networks `yaml:"-"`
+
+	TimeoutCfg `yaml:",inline"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *TCP) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain TCP
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	if err := c.validate(); err != nil {
+		return err
+	}
+
+	return checkOverflow(c.XXX, "http")
+}
+
+func (c *TCP) validate() error {
 	if c.ReadTimeout == 0 {
 		c.ReadTimeout = Duration(time.Minute)
 	}
