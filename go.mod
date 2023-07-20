@@ -3,6 +3,7 @@ module github.com/contentsquare/chproxy
 go 1.19
 
 require (
+	github.com/ClickHouse/clickhouse-go v1.5.4
 	github.com/alicebob/miniredis/v2 v2.21.0
 	github.com/google/go-cmp v0.5.7
 	github.com/klauspost/compress v1.15.11
@@ -20,6 +21,7 @@ require (
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
+	github.com/cloudflare/golz4 v0.0.0-20150217214814-ef862a3cdc58 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/frankban/quicktest v1.7.2 // indirect

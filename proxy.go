@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/contentsquare/chproxy/tcp"
-	"github.com/contentsquare/chproxy/tcputil"
 	"io"
 	"io/ioutil"
 	"net"
@@ -35,7 +34,7 @@ type reverseProxy struct {
 	rp *httputil.ReverseProxy
 
 	//add tcp proxy
-	trp *tcputil.ReverseProxy
+	trp *ReverseProxy
 
 	// configLock serializes access to applyConfig.
 	// It protects reload* fields.
@@ -83,7 +82,7 @@ func newReverseProxy(cfgCp *config.ConnectionPool) *reverseProxy {
 			// are handled and logged in the code below.
 			ErrorLog: log.NilLogger,
 		},
-		trp:                 &tcputil.ReverseProxy{},
+		trp:                 &ReverseProxy{},
 		reloadSignal:        make(chan struct{}),
 		reloadWG:            sync.WaitGroup{},
 		maxIdleConns:        cfgCp.MaxIdleConnsPerHost,
@@ -91,9 +90,9 @@ func newReverseProxy(cfgCp *config.ConnectionPool) *reverseProxy {
 	}
 }
 
-func (rp *reverseProxy) ServeTCP(conn *tcp.Conn) {
-	//get scope
-	rp.trp.ServeTCP(conn)
+func (rp *reverseProxy) ServeTCP(clientConn *tcp.ClientConn) {
+	scope, _, _ := rp.getScopeTCP(clientConn)
+	rp.trp.Serve(clientConn, scope)
 }
 
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -876,6 +875,21 @@ func (rp *reverseProxy) generateWildcardedUserInformation(user *user, name strin
 		// Doing a clean fix would require a huge refactoring.
 	}
 	return
+}
+
+func (rp *reverseProxy) getScopeTCP(conn *tcp.ClientConn) (*scope, int, error) {
+	username := conn.Username
+	password := conn.Password
+	var (
+		u              *user
+		c              *cluster
+		cu             *clusterUser
+		sessionId      string
+		sessionTimeout int
+	)
+	_, u, c, cu = rp.getUser(username, password)
+	scope := newScopeTCP(u, c, cu, sessionId, sessionTimeout)
+	return scope, 0, nil
 }
 
 func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {

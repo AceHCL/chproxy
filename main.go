@@ -214,7 +214,9 @@ func listenAndServeTCP(ln net.Listener, h tcp.Handler, cfg config.TimeoutCfg) er
 }
 func newServerTCP(ln net.Listener, h tcp.Handler, cfg config.TimeoutCfg) *tcp.Server {
 	return &tcp.Server{
-		h,
+		Handler:      h,
+		ReadTimeout:  cfg.ReadTimeout,
+		WriteTimeout: cfg.WriteTimeout,
 	}
 }
 
@@ -279,9 +281,14 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func serveTCPHandler(conn *tcp.Conn) {
-	//调用处理函数
-	proxy.ServeTCP(conn)
+func serveTCPHandler(conn net.Conn, readTimeout, writeTimeout config.Duration) {
+	clientConn := tcp.NewClientConn(conn, readTimeout, writeTimeout)
+	if err := clientConn.Hello(); err != nil {
+		_ = clientConn.ResponseException(err)
+		return
+	}
+	proxy.ServeTCP(clientConn)
+	defer func() { clientConn.Close() }()
 }
 
 func loadConfig() (*config.Config, error) {
