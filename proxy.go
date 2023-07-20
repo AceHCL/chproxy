@@ -92,7 +92,14 @@ func newReverseProxy(cfgCp *config.ConnectionPool) *reverseProxy {
 
 func (rp *reverseProxy) ServeTCP(clientConn *tcp.ClientConn) {
 	scope, _, _ := rp.getScopeTCP(clientConn)
-	rp.trp.Serve(clientConn, scope)
+	if err := rp.trp.Serve(clientConn, scope); err != nil {
+		if err == io.EOF {
+			log.Debugf("eof: %w", err)
+			return
+		}
+		log.Errorf("tcp reverse proxy error,username: %s", clientConn.Username)
+		_ = clientConn.ResponseException(err)
+	}
 }
 
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {

@@ -9,19 +9,20 @@ import (
 	"github.com/ClickHouse/clickhouse-go/lib/protocol"
 	"github.com/contentsquare/chproxy/config"
 	"github.com/contentsquare/chproxy/log"
+	"io"
 	"net"
 )
 
 type ClientConn struct {
 	Username       string
 	Password       string
-	database       string
+	Database       string
+	Query          *QueryInfo
 	block          *data.Block
 	connection     *connect
 	decoder        *binary.Decoder
 	encoder        *binary.Encoder
 	chConn         driver.Conn
-	query          *QueryInfo
 	clientRevision uint64
 }
 
@@ -39,7 +40,7 @@ func NewClientConn(conn net.Conn, readTimeout, writeTimeout config.Duration) *Cl
 		connection: connection,
 		decoder:    decoder,
 		encoder:    encoder,
-		query:      &QueryInfo{},
+		Query:      &QueryInfo{},
 	}
 }
 func (conn *ClientConn) ResponseException(err error) error {
@@ -53,6 +54,36 @@ func (conn *ClientConn) ResponseOK() error {
 		return err
 	}
 	return conn.encoder.Flush()
+}
+func (conn *ClientConn) Receive() (bool, error) {
+	conn.decoder.SelectCompress(false)
+	packet, err := conn.decoder.Uvarint()
+	if err != nil {
+		return false, err
+	}
+	switch packet {
+	case protocol.ClientPing:
+		if err := conn.processPing(); err != nil {
+			return false, err
+		}
+	case protocol.ClientData:
+		if err := conn.processData(); err != nil {
+			return false, err
+		}
+	case protocol.ClientQuery:
+		query, err := conn.processQuery()
+		if err != nil {
+			return false, err
+		}
+		conn.Query = query
+		return true, nil
+	default:
+		return false, fmt.Errorf("received unexpect packet type")
+	}
+	return false, nil
+}
+func (conn *ClientConn) Process() error {
+
 }
 func (conn *ClientConn) Hello() error {
 	packet, err := conn.decoder.Uvarint()
@@ -70,6 +101,33 @@ func (conn *ClientConn) Hello() error {
 		return err
 	}
 	return conn.encoder.Flush()
+
+}
+func (conn *ClientConn) processPing() error {
+	if err := conn.encoder.Uvarint(protocol.ServerPong); err != nil {
+		return err
+	}
+	return conn.encoder.Flush()
+}
+func (conn *ClientConn) processQuery() (*QueryInfo, error) {
+	queryID, err := conn.decoder.String()
+	if err != nil {
+		return nil, err
+	}
+	clientInfo := &QueryClientInfo{}
+	err = clientInfo.Read(conn.decoder, conn.clientRevision)
+	if err != nil {
+		return nil, err
+	}
+	settings := make(map[string]string)
+	for {
+		//name
+		//empty name
+
+	}
+	return conn.Query, nil
+}
+func (conn *ClientConn) processData() error {
 
 }
 func (conn *ClientConn) helloReceived() error {
@@ -119,6 +177,17 @@ func (conn *ClientConn) helloSend() error {
 		}
 	}
 	return conn.encoder.Flush()
+}
+func (conn *ClientConn) UnexpectedException(err error) error {
+	if err, ok := err.(net.Error); ok && err.Timeout() {
+		return fmt.Errorf("client conn timeout: %w", err)
+	}
+	if err != io.EOF {
+		if err := conn.ResponseException(err); err != nil {
+			return fmt.Errorf("response exception error: %w", err)
+		}
+	}
+	return fmt.Errorf("unexpect error: %w", err)
 }
 func (conn *ClientConn) Close() {
 	if conn.chConn != nil {
