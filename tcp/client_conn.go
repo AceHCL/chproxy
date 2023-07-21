@@ -2,26 +2,33 @@ package tcp
 
 import (
 	"bufio"
+	"context"
 	"database/sql/driver"
 	"fmt"
+	"github.com/ClickHouse/clickhouse-go"
 	"github.com/ClickHouse/clickhouse-go/lib/binary"
+	"github.com/ClickHouse/clickhouse-go/lib/column"
 	"github.com/ClickHouse/clickhouse-go/lib/data"
 	"github.com/ClickHouse/clickhouse-go/lib/protocol"
 	"github.com/contentsquare/chproxy/config"
 	"github.com/contentsquare/chproxy/log"
 	"io"
 	"net"
+	"sync"
+	"time"
 )
 
 type ClientConn struct {
+	sync.Mutex
 	Username       string
 	Password       string
 	Database       string
-	Query          *QueryInfo
+	Query          *Query
 	block          *data.Block
 	connection     *connect
 	decoder        *binary.Decoder
 	encoder        *binary.Encoder
+	querySettings  map[string]string
 	chConn         driver.Conn
 	clientRevision uint64
 }
@@ -40,7 +47,7 @@ func NewClientConn(conn net.Conn, readTimeout, writeTimeout config.Duration) *Cl
 		connection: connection,
 		decoder:    decoder,
 		encoder:    encoder,
-		Query:      &QueryInfo{},
+		Query:      &Query{},
 	}
 }
 func (conn *ClientConn) ResponseException(err error) error {
@@ -55,35 +62,52 @@ func (conn *ClientConn) ResponseOK() error {
 	}
 	return conn.encoder.Flush()
 }
-func (conn *ClientConn) Receive() (bool, error) {
-	conn.decoder.SelectCompress(false)
-	packet, err := conn.decoder.Uvarint()
+func (conn *ClientConn) ReceiveRequest() (bool, error) {
+	decoder := conn.decoder
+	decoder.SelectCompress(false)
+	packet, err := decoder.Uvarint()
 	if err != nil {
 		return false, err
 	}
 	switch packet {
 	case protocol.ClientPing:
-		if err := conn.processPing(); err != nil {
+		if err := conn.receivePing(); err != nil {
 			return false, err
 		}
 	case protocol.ClientData:
-		if err := conn.processData(); err != nil {
+		if err := conn.receiveData(); err != nil {
 			return false, err
 		}
 	case protocol.ClientQuery:
-		query, err := conn.processQuery()
+		query, err := conn.receiveQuery()
 		if err != nil {
 			return false, err
 		}
 		conn.Query = query
 		return true, nil
 	default:
-		return false, fmt.Errorf("received unexpect packet type")
+		return false, fmt.Errorf("not support tcp request type")
 	}
 	return false, nil
 }
-func (conn *ClientConn) Process() error {
-
+func (conn *ClientConn) ProcessRequest() error {
+	//scope
+	queryType := conn.Query.queryType
+	switch queryType {
+	case InsertType:
+		if err := conn.processInsert(); err != nil {
+			return err
+		}
+	case SelectType:
+		if err := conn.processSelect(); err != nil {
+			return err
+		}
+	case OtherType:
+		if err := conn.processOther(); err != nil {
+			return err
+		}
+	}
+	return fmt.Errorf("not support qyery type error")
 }
 func (conn *ClientConn) Hello() error {
 	packet, err := conn.decoder.Uvarint()
@@ -103,32 +127,163 @@ func (conn *ClientConn) Hello() error {
 	return conn.encoder.Flush()
 
 }
-func (conn *ClientConn) processPing() error {
+func (conn *ClientConn) readBlock(decoder *binary.Decoder) error {
+	if _, err := decoder.Uvarint(); err != nil {
+		return err
+	}
+	if _, err := decoder.String(); err != nil {
+		return err
+	}
+	conn.decoder.SelectCompress(conn.Query.Compress)
+	if err := conn.block.Read(CHProxyServerInfo, decoder); err != nil {
+		return err
+	}
+	return nil
+}
+func (conn *ClientConn) writeBlock() error {
+	encoder := conn.encoder
+	if err := encoder.Uvarint(protocol.ServerData); err != nil {
+		return err
+	}
+	if err := encoder.String(""); err != nil {
+		return err
+	}
+	encoder.SelectCompress(conn.Query.Compress)
+	if err := conn.block.Write(CHProxyServerInfo, conn.encoder); err != nil {
+		return err
+	}
+	encoder.SelectCompress(false)
+	return encoder.Flush()
+}
+func (conn *ClientConn) processSelect() (err error) {
+	var host string
+	if conn.chConn == nil {
+		conn.chConn, err = clickhouse.Open(host)
+		if err != nil {
+			return err
+		}
+	}
+	stmt, err := conn.chConn.Prepare(conn.Query.Query)
+	if err != nil {
+		return err
+	}
+	rows, err := stmt.(driver.StmtQueryContext).QueryContext(context.Background(), []driver.NamedValue{})
+	if err != nil {
+		return err
+	}
+	err = conn.responseMeta(&rows)
+	if err != nil {
+		return err
+	}
+	err = conn.responseData(&rows)
+	if err != nil {
+		return err
+	}
+	return conn.ResponseOK()
+}
+func (conn *ClientConn) responseMeta(rows *driver.Rows) error {
+	meta := (*rows).(driver.RowsColumnTypeDatabaseTypeName)
+	var columns []column.Column
+	for i := 0; i < len(meta.Columns()); i++ {
+		col, err := column.Factory(meta.Columns()[i], meta.ColumnTypeDatabaseTypeName(i), time.Local)
+		if err != nil {
+			return err
+		}
+		columns[i] = col
+	}
+	conn.block = &data.Block{
+		NumColumns: uint64(len(meta.Columns())),
+		Columns:    columns,
+		Values:     make([][]interface{}, len(meta.Columns())),
+	}
+	conn.Lock()
+	defer func() { conn.Unlock() }()
+	if err := conn.writeBlock(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (conn *ClientConn) processInsert() error {
+	return nil
+}
+func (conn *ClientConn) processOther() error {
+	return nil
+}
+func (conn *ClientConn) responseData(rows *driver.Rows) error {
+	encoder := conn.encoder
+	if err := encoder.Uvarint(protocol.ServerData); err != nil {
+		return err
+	}
+	values := (*rows).(driver.RowsColumnTypeDatabaseTypeName)
+	dist := make([]driver.Value, len(conn.block.Columns))
+	for {
+		if err := values.Next(dist); err != nil {
+			break
+		}
+		if err := conn.block.AppendRow(dist); err != nil {
+			return err
+		}
+	}
+	if err := conn.writeBlock(); err != nil {
+		return err
+	}
+	return encoder.Flush()
+}
+func (conn *ClientConn) receivePing() error {
 	if err := conn.encoder.Uvarint(protocol.ServerPong); err != nil {
 		return err
 	}
 	return conn.encoder.Flush()
 }
-func (conn *ClientConn) processQuery() (*QueryInfo, error) {
-	queryID, err := conn.decoder.String()
+func (conn *ClientConn) receiveQuery() (*Query, error) {
+	var (
+		query   *Query
+		decoder *binary.Decoder
+	)
+	queryID, err := decoder.String()
 	if err != nil {
 		return nil, err
 	}
-	clientInfo := &QueryClientInfo{}
-	err = clientInfo.Read(conn.decoder, conn.clientRevision)
-	if err != nil {
-		return nil, err
-	}
-	settings := make(map[string]string)
-	for {
-		//name
-		//empty name
+	query.QueryID = queryID
 
+	queryInfo := &queryInfo{}
+	if err := queryInfo.Read(decoder); err != nil {
+		return nil, err
 	}
-	return conn.Query, nil
+	clientInfo := &clientInfo{}
+	if err := clientInfo.read(decoder); err != nil {
+		return nil, err
+	}
+	settings := &settingsInfo{}
+
+	if conn.querySettings, err = settings.deserialize(decoder); err != nil {
+		return nil, fmt.Errorf("deserialize client settings error")
+	}
+
+	if query.State, err = decoder.Uvarint(); err != nil {
+		return nil, fmt.Errorf("get client query state error")
+	}
+
+	compress, err := decoder.Uvarint()
+	if err != nil {
+		return nil, fmt.Errorf("get client compress error")
+	}
+	query.Compress = compress > 0
+
+	if query.Query, err = decoder.String(); err != nil {
+		return nil, fmt.Errorf("get client query error")
+	}
+	if query.queryType, err = getQueryType(query.Query); err != nil {
+		return nil, err
+	}
+	if err = conn.readBlock(decoder); err != nil {
+		return nil, err
+	}
+	return query, nil
 }
-func (conn *ClientConn) processData() error {
-
+func (conn *ClientConn) receiveData() error {
+	return nil
 }
 func (conn *ClientConn) helloReceived() error {
 
@@ -156,7 +311,7 @@ func (conn *ClientConn) helloReceived() error {
 	password, err := conn.decoder.String()
 	conn.Username = username
 	conn.Password = password
-	conn.database = defaultDB
+	conn.Database = defaultDB
 	return nil
 }
 func (conn *ClientConn) helloSend() error {

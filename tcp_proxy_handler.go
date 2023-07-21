@@ -8,20 +8,21 @@ import (
 type ReverseProxy struct {
 }
 
-func (p *ReverseProxy) Serve(clientConn *tcp.ClientConn, scope *scope) error {
+func (p *ReverseProxy) Serve(conn *tcp.ClientConn, scope *scope) error {
 	for {
-		clientConn.Query.QueryID, clientConn.Query.Query = "", ""
-		end, err := clientConn.Receive()
+		query := conn.Query
+		query.QueryID, query.Query = "", ""
+		end, err := conn.ReceiveRequest()
 		if err != nil {
-			if err := clientConn.UnexpectedException(err); err != nil {
+			if err := conn.UnexpectedException(err); err != nil {
 				return err
 			}
 		}
 		if !end {
 			continue
 		}
-		if err = clientConn.Process(); err != nil {
-			if err := clientConn.ResponseException(err); err != nil {
+		if err = conn.ProcessRequest(); err != nil {
+			if err := conn.ResponseException(err); err != nil {
 				return fmt.Errorf("response exception error: %w", err)
 			}
 		}

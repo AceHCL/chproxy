@@ -3,8 +3,8 @@ package tcp
 import (
 	"fmt"
 	"github.com/ClickHouse/clickhouse-go/lib/binary"
-	"net/url"
 	"strconv"
+	"strings"
 )
 
 type querySettingType int
@@ -21,6 +21,62 @@ const (
 type querySettingInfo struct {
 	name   string
 	qsType querySettingType
+}
+
+func (setting *querySettingInfo) getValue(decoder *binary.Decoder) (string, error) {
+	switch setting.qsType {
+	case uintQS, timeQS:
+		value, err := decoder.Uvarint()
+		if err != nil {
+			return "", err
+		}
+		return strconv.FormatUint(value, 10), nil
+	case intQS:
+		value, err := decoder.Int64()
+		if err != nil {
+			return "", err
+		}
+		return strconv.FormatInt(value, 10), nil
+	case boolQS:
+		val, err := decoder.Bool()
+		if err != nil {
+			return "", err
+		}
+		return strconv.FormatBool(val), nil
+	default:
+		return "", fmt.Errorf("not support setting type")
+	}
+}
+
+type settingsInfo struct {
+}
+
+func (setting *settingsInfo) deserialize(decoder *binary.Decoder) (map[string]string, error) {
+	settings := make(map[string]string)
+	for {
+		name, err := decoder.String()
+		if err != nil {
+			return nil, fmt.Errorf("get query setting name error")
+		}
+		if name == "" {
+			break
+		}
+		for i, info := range querySettingList {
+			if (len(querySettingList) - 1) == i {
+				return nil, fmt.Errorf("proxy not contains this setting name: %s", name)
+			}
+			if !strings.EqualFold(info.name, name) {
+				continue
+			}
+			value, err := info.getValue(decoder)
+			if err != nil {
+				return nil, err
+			}
+			settings[name] = value
+			break
+		}
+	}
+	return settings, nil
 }
 
 // all possible query settings
@@ -213,69 +269,4 @@ var querySettingList = []querySettingInfo{
 	{"http_receive_timeout", timeQS},
 	{"max_execution_time", timeQS},
 	{"timeout_before_checking_execution_speed", timeQS},
-}
-
-type querySettingValueEncoder func(enc *binary.Encoder) error
-
-type querySettings struct {
-	settings    map[string]querySettingValueEncoder
-	settingsStr string // used for debug output
-}
-
-func getQuerySettings(query url.Values) (*querySettings, error) {
-	qs := &querySettings{
-		settings:    make(map[string]querySettingValueEncoder),
-		settingsStr: "",
-	}
-
-	for _, info := range querySettingList {
-		valueStr := query.Get(info.name)
-		if valueStr == "" {
-			continue
-		}
-
-		switch info.qsType {
-		case uintQS, intQS, timeQS:
-			value, err := strconv.ParseUint(valueStr, 10, 64)
-			if err != nil {
-				return nil, err
-			}
-			qs.settings[info.name] = func(enc *binary.Encoder) error { return enc.Uvarint(value) }
-
-		case boolQS:
-			valueBool, err := strconv.ParseBool(valueStr)
-			if err != nil {
-				return nil, err
-			}
-			value := uint64(0)
-			if valueBool {
-				value = 1
-			}
-			qs.settings[info.name] = func(enc *binary.Encoder) error { return enc.Uvarint(value) }
-
-		default:
-			err := fmt.Errorf("query setting %s has unsupported data type", info.name)
-			return nil, err
-		}
-
-		if qs.settingsStr != "" {
-			qs.settingsStr += "&"
-		}
-		qs.settingsStr += info.name + "=" + valueStr
-	}
-
-	return qs, nil
-}
-
-func (qs *querySettings) Deserialize(enc *binary.Encoder) error {
-	for name, fn := range qs.settings {
-		if err := enc.String(name); err != nil {
-			return err
-		}
-		if err := fn(enc); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
