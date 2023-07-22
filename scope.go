@@ -56,24 +56,6 @@ type scope struct {
 	requestPacketSize int
 }
 
-func newScopeTCP(u *user, c *cluster, cu *clusterUser, sessionId string, sessionTimeout int) *scope {
-	h := c.getHost()
-	if sessionId != "" {
-		h = c.getHostSticky(sessionId)
-	}
-	s := &scope{
-		startTime:      time.Now(),
-		id:             newScopeID(),
-		host:           h,
-		cluster:        c,
-		user:           u,
-		clusterUser:    cu,
-		sessionId:      sessionId,
-		sessionTimeout: sessionTimeout,
-	}
-	return s
-}
-
 func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser, sessionId string, sessionTimeout int) *scope {
 	h := c.getHost()
 	if sessionId != "" {

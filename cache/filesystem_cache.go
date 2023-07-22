@@ -110,7 +110,7 @@ func (f *fileSystemCache) Get(key *Key) (*CachedData, error) {
 			file.Close()
 			return nil, ErrMissing
 		}
-		// Serve expired file in the hope it will be substituted
+		// rp expired file in the hope it will be substituted
 		// with the fresh file during deadline.
 	}
 

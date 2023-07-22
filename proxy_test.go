@@ -99,10 +99,10 @@ func TestNewReverseProxy(t *testing.T) {
 		t.Fatalf("got %s host; expResponse: %s", r.hosts[0].addr.Host, "localhost:8123")
 	}
 	if len(proxy.users) != 1 {
-		t.Fatalf("got %d users; expResponse: %d", len(proxy.users), 1)
+		t.Fatalf("got %d Users; expResponse: %d", len(proxy.users), 1)
 	}
 	if _, ok := proxy.users[defaultUsername]; !ok {
-		t.Fatalf("expected user %q to be present in users", defaultUsername)
+		t.Fatalf("expected user %q to be present in Users", defaultUsername)
 	}
 }
 
@@ -300,7 +300,7 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 		},
 		{
 			cfg:           goodCfg,
-			name:          "choose max time between users",
+			name:          "choose max time between Users",
 			expResponse:   fmt.Sprintf("timeout for user \"%s\" exceeded: 10ms", defaultUsername),
 			expStatusCode: http.StatusGatewayTimeout,
 			f: func(p *reverseProxy) *http.Response {

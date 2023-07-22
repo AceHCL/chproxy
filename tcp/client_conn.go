@@ -24,6 +24,7 @@ type ClientConn struct {
 	Password       string
 	Database       string
 	Query          *Query
+	Scope          *Scope
 	block          *data.Block
 	connection     *connect
 	decoder        *binary.Decoder
@@ -91,7 +92,6 @@ func (conn *ClientConn) ReceiveRequest() (bool, error) {
 	return false, nil
 }
 func (conn *ClientConn) ProcessRequest() error {
-	//scope
 	queryType := conn.Query.queryType
 	switch queryType {
 	case InsertType:
@@ -156,9 +156,12 @@ func (conn *ClientConn) writeBlock() error {
 	return encoder.Flush()
 }
 func (conn *ClientConn) processSelect() (err error) {
-	var host string
+	dsn, err := conn.constructDsn()
+	if err != nil {
+		return err
+	}
 	if conn.chConn == nil {
-		conn.chConn, err = clickhouse.Open(host)
+		conn.chConn, err = clickhouse.Open(dsn)
 		if err != nil {
 			return err
 		}
@@ -202,6 +205,15 @@ func (conn *ClientConn) responseMeta(rows *driver.Rows) error {
 		return err
 	}
 	return nil
+}
+func (conn *ClientConn) constructDsn() (string, error) {
+	scope := conn.Scope
+	settings := conn.querySettings
+	dsn := fmt.Sprintf("tcp://%s?username=%s&password=%s", scope.Node, scope.Username, scope.PassWord)
+	for name, value := range settings {
+		dsn += dsn + fmt.Sprintf("&%s=%s", name, value)
+	}
+	return dsn, nil
 }
 
 func (conn *ClientConn) processInsert() error {

@@ -91,8 +91,8 @@ func newReverseProxy(cfgCp *config.ConnectionPool) *reverseProxy {
 }
 
 func (rp *reverseProxy) ServeTCP(clientConn *tcp.ClientConn) {
-	scope, _, _ := rp.getScopeTCP(clientConn)
-	if err := rp.trp.Serve(clientConn, scope); err != nil {
+
+	if err := rp.trp.rp(); err != nil {
 		if err == io.EOF {
 			log.Debugf("eof: %w", err)
 			return
@@ -628,6 +628,8 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 	defer rp.configLock.Unlock()
 
 	clusters, err := newClusters(cfg.Clusters)
+	rp.trp.Clusters = tcp.NewClusters(cfg.Clusters)
+	rp.trp.Users = tcp.NewUsers(cfg.Users)
 	if err != nil {
 		return err
 	}
@@ -645,7 +647,7 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 	}()
 
 	// transactionsTimeout used for creation of transactions registry inside async cache.
-	// It is set to the highest configured execution time of all users to avoid setups were users use the same cache and have configured different maxExecutionTime.
+	// It is set to the highest configured execution time of all Users to avoid setups were Users use the same cache and have configured different maxExecutionTime.
 	// This would provoke undesired behaviour of `dogpile effect`
 	transactionsTimeout := config.Duration(0)
 	for _, user := range cfg.Users {
@@ -829,7 +831,7 @@ func (rp *reverseProxy) getUser(name string, password string) (found bool, u *us
 		// default user can't work with the wildcarded feature for security reasons
 		found = false
 	case rp.hasWildcarded:
-		// checking if we have wildcarded users and if username matches one 3 possibles patterns
+		// checking if we have wildcarded Users and if username matches one 3 possibles patterns
 		found, u, c, cu = rp.findWildcardedUserInformation(name, password)
 	}
 	return found, u, c, cu
@@ -882,21 +884,6 @@ func (rp *reverseProxy) generateWildcardedUserInformation(user *user, name strin
 		// Doing a clean fix would require a huge refactoring.
 	}
 	return
-}
-
-func (rp *reverseProxy) getScopeTCP(conn *tcp.ClientConn) (*scope, int, error) {
-	username := conn.Username
-	password := conn.Password
-	var (
-		u              *user
-		c              *cluster
-		cu             *clusterUser
-		sessionId      string
-		sessionTimeout int
-	)
-	_, u, c, cu = rp.getUser(username, password)
-	scope := newScopeTCP(u, c, cu, sessionId, sessionTimeout)
-	return scope, 0, nil
 }
 
 func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {

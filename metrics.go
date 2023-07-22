@@ -85,7 +85,7 @@ func initMetrics(cfg *config.Config) {
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "host_health",
-			Help:      "Health state of hosts by clusters",
+			Help:      "Health state of hosts by Clusters",
 		},
 		[]string{"cluster", "replica", "cluster_node"},
 	)
