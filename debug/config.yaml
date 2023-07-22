@@ -1,0 +1,35 @@
+
+log_debug: true
+
+hack_me_please: true
+
+server:
+  http:
+    listen_addr: ":9090"
+  tcp:
+    listen_addr: ":9100"
+
+users:
+  - name: "test"
+    password: "test"
+    to_cluster: "cluster_test"
+    to_user: "default"
+
+clusters:
+  - name: "cluster_test"
+    scheme: "http"
+    nodes: ["127.0.0.1:8123"]
+    tcp_nodes: ["127.0.0.1:9000"]
+    heartbeat:
+      interval: 1m
+      timeout: 10s
+      request: "/?query=SELECT%201%2B1"
+      response: "2\n"
+    kill_query_user:
+      name: "default"
+      password: ""
+    users:
+      - name: "default"
+        password: ""
+        max_concurrent_queries: 4
+        max_execution_time: 1m
