@@ -49,10 +49,15 @@ func (p *ReverseProxy) newCluster(cfg config.Cluster) (*tcp.Cluster, error) {
 			Password: cu.Password,
 		}
 	}
+	nodes := make([]string, len(cfg.Nodes))
+	for i, node := range cfg.Nodes {
+		nodes[i] = node
+	}
 	return &tcp.Cluster{
 		Name:     cfg.Name,
 		Replicas: replicas,
 		Users:    cUsers,
+		TCPNodes: nodes,
 	}, nil
 }
 
@@ -128,7 +133,13 @@ func (p *ReverseProxy) getClusterUser(cluster *tcp.Cluster, chUsername string) (
 	return nil, fmt.Errorf("not found to user available")
 }
 func (p *ReverseProxy) getRandomNode(cluster *tcp.Cluster) (string, error) {
-	return cluster.Replicas[0].Nodes[0], nil
+	if len(cluster.TCPNodes) > 0 {
+		return cluster.TCPNodes[0], nil
+	}
+	if len(cluster.Replicas) > 0 {
+		return cluster.Replicas[0].Nodes[0], nil
+	}
+	return "", fmt.Errorf("not found available node ")
 }
 
 func (p *ReverseProxy) Serve() (err error) {

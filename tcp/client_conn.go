@@ -249,10 +249,8 @@ func (conn *ClientConn) receivePing() error {
 	return conn.encoder.Flush()
 }
 func (conn *ClientConn) receiveQuery() (*Query, error) {
-	var (
-		query   *Query
-		decoder *binary.Decoder
-	)
+	query := &Query{}
+	decoder := conn.decoder
 	queryID, err := decoder.String()
 	if err != nil {
 		return nil, err
@@ -270,7 +268,7 @@ func (conn *ClientConn) receiveQuery() (*Query, error) {
 	settings := &settingsInfo{}
 
 	if conn.querySettings, err = settings.deserialize(decoder); err != nil {
-		return nil, fmt.Errorf("deserialize client settings error")
+		return nil, err
 	}
 
 	if query.State, err = decoder.Uvarint(); err != nil {
@@ -315,7 +313,7 @@ func (conn *ClientConn) helloReceived() error {
 	if err != nil {
 		return fmt.Errorf("could not read client revision: %w", err)
 	}
-	log.Debugf("hello received,clientName: %s,clientMajorVersion: %d,clientMinorVersion: %d,clientRevision: %d", clientName, clientVersionMajor, clientVersionMinor, clientRevision)
+	log.Debugf("hello <-[clientName: %s,clientMajorVersion: %d,clientMinorVersion: %d,clientRevision: %d]", clientName, clientVersionMajor, clientVersionMinor, clientRevision)
 	conn.clientRevision = clientRevision
 
 	defaultDB, err := conn.decoder.String()

@@ -31,6 +31,7 @@ type Cluster struct {
 	Name string
 
 	Replicas []*Replica
+	TCPNodes []string
 
 	Users map[string]*ClusterUser
 

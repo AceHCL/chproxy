@@ -91,7 +91,7 @@ func newReverseProxy(cfgCp *config.ConnectionPool) *reverseProxy {
 }
 
 func (rp *reverseProxy) ServeTCP(clientConn *tcp.ClientConn) {
-
+	rp.trp.Conn = clientConn
 	if err := rp.trp.Serve(); err != nil {
 		if err == io.EOF {
 			log.Debugf("eof: %w", err)

@@ -44,8 +44,8 @@ func (srv *Server) Serve(ln net.Listener) (err error) {
 
 const (
 	VersionName  = "chproxy"
-	VersionMajor = 23
-	VersionMinor = 7
+	VersionMajor = 21
+	VersionMinor = 3
 )
 
 const (
