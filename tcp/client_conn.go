@@ -209,7 +209,7 @@ func (conn *ClientConn) responseMeta(rows *driver.Rows) error {
 func (conn *ClientConn) constructDsn() (string, error) {
 	scope := conn.Scope
 	settings := conn.querySettings
-	dsn := fmt.Sprintf("tcp://%s?username=%s&password=%s", scope.Node, scope.Username, scope.PassWord)
+	dsn := fmt.Sprintf("tcp://%s?username=%s&password=%s", scope.Node, scope.ChPassword, scope.ChUsername)
 	for name, value := range settings {
 		dsn += dsn + fmt.Sprintf("&%s=%s", name, value)
 	}

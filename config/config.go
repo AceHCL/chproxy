@@ -580,7 +580,8 @@ type Cluster struct {
 	// Nodes contains cluster nodes.
 	//
 	// Either Nodes or Replicas must be set, but not both.
-	Nodes []string `yaml:"nodes,omitempty"`
+	Nodes    []string `yaml:"nodes,omitempty"`
+	TCPNodes []string `yaml:"tcp_nodes,omitempty"`
 
 	// Replicas contains replicas.
 	//

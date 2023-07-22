@@ -92,7 +92,7 @@ func newReverseProxy(cfgCp *config.ConnectionPool) *reverseProxy {
 
 func (rp *reverseProxy) ServeTCP(clientConn *tcp.ClientConn) {
 
-	if err := rp.trp.rp(); err != nil {
+	if err := rp.trp.Serve(); err != nil {
 		if err == io.EOF {
 			log.Debugf("eof: %w", err)
 			return
@@ -628,15 +628,14 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 	defer rp.configLock.Unlock()
 
 	clusters, err := newClusters(cfg.Clusters)
-	rp.trp.Clusters = tcp.NewClusters(cfg.Clusters)
-	rp.trp.Users = tcp.NewUsers(cfg.Users)
+	rp.trp.loadConfig(cfg)
 	if err != nil {
 		return err
 	}
 
 	caches := make(map[string]*cache.AsyncCache, len(cfg.Caches))
 	defer func() {
-		// caches is swapped with old caches from rp.caches
+		// caches is swapped with old caches from Serve.caches
 		// on successful config reload - see the end of reloadConfig.
 		for _, tmpCache := range caches {
 			// Speed up applyConfig by closing caches in background,
@@ -692,7 +691,7 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 	rp.reloadSignal = make(chan struct{})
 	rp.restartWithNewConfig(caches, clusters, users)
 
-	// Substitute old configs with the new configs in rp.
+	// Substitute old configs with the new configs in Serve.
 	// All the currently running requests will continue with old configs,
 	// while all the new requests will use new configs.
 	rp.lock.Lock()

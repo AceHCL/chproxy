@@ -3,115 +3,54 @@ package tcp
 import (
 	"github.com/contentsquare/chproxy/config"
 	"github.com/contentsquare/chproxy/internal/heartbeat"
-	"golang.org/x/time/rate"
-	"net/url"
-	"strings"
 	"time"
 )
 
 type Scope struct {
-	Cluster  string
-	Username string
-	PassWord string
-	Node     string
+	ChCluster  string
+	ChUsername string
+	ChPassword string
+	Node       string
 }
 
-func NewScope(username, password, node string) *Scope {
-	return &Scope{
-		Username: username,
-		PassWord: password,
-		Node:     node,
-	}
+type User struct {
+	Name     string
+	Password string
+
+	ToCluster string
+	ToUser    string
+
+	maxExecutionTime time.Duration
+
+	allowedNetworks config.Networks
+
+	denyTCP bool
 }
 
 type Cluster struct {
-	name string
+	Name string
 
-	replicas       []*replica
-	nextReplicaIdx uint32
+	Replicas []*Replica
 
-	users map[string]*clusterUser
-
-	killQueryUserName     string
-	killQueryUserPassword string
+	Users map[string]*ClusterUser
 
 	heartBeat heartbeat.HeartBeat
-
-	retryNumber int
 }
-type host struct {
-	replica *replica
+type Replica struct {
+	Name string
 
-	// Counter of unsuccessful requests to decrease host priority.
-	penalty uint32
-
-	// Either the current host is alive.
-	active uint32
-
-	// Host address.
-	addr *url.URL
+	Nodes []string
 }
-type cluster struct {
-	name string
 
-	replicas       []*replica
-	nextReplicaIdx uint32
-
-	users map[string]*clusterUser
-
-	killQueryUserName     string
-	killQueryUserPassword string
-
-	heartBeat heartbeat.HeartBeat
-
-	retryNumber int
+type Host struct {
+	Addr string
 }
-type clusterUser struct {
-	name     string
-	password string
+
+type ClusterUser struct {
+	Name     string
+	Password string
 
 	maxConcurrentQueries uint32
 
 	maxExecutionTime time.Duration
-
-	reqPerMin uint32
-
-	queueCh      chan struct{}
-	maxQueueTime time.Duration
-
-	reqPacketSizeTokenLimiter *rate.Limiter
-	reqPacketSizeTokensBurst  config.ByteSize
-	reqPacketSizeTokensRate   config.ByteSize
-
-	allowedNetworks config.Networks
-	isWildcarded    bool
-}
-type replica struct {
-	cluster *cluster
-
-	name string
-
-	hosts       []*host
-	nextHostIdx uint32
-}
-type User struct {
-}
-
-func NewClusters(clusters []config.Cluster) map[string]*Cluster {
-	for _, cluster := range clusters {
-		if !strings.EqualFold("tcp", cluster.Scheme) {
-			continue
-		}
-
-	}
-}
-func NewUsers(users []config.User) map[string]*User {
-
-}
-
-func newCluster(cfg *config.Cluster) {
-
-}
-func newUser(cfg *config.User) {
-
 }
