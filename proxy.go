@@ -419,7 +419,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	}
 
 	// The response wasn't found in the cache.
-	// Request it from clickhouse.
+	// RequestPacket it from clickhouse.
 	tmpFileRespWriter, err := cache.NewTmpFileResponseWriter(srw, tmpDir)
 	if err != nil {
 		err = fmt.Errorf("%s: %w; query: %q", s, err, q)
@@ -487,7 +487,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		// Do not cache responses greater than max payload size.
 		if contentLength > int64(s.user.cache.MaxPayloadSize) {
 			cacheSkipped.With(labels).Inc()
-			log.Infof("%s: Request will not be cached. Content length (%d) is greater than max payload size (%d)", s, contentLength, s.user.cache.MaxPayloadSize)
+			log.Infof("%s: RequestPacket will not be cached. Content length (%d) is greater than max payload size (%d)", s, contentLength, s.user.cache.MaxPayloadSize)
 
 			rp.completeTransaction(s, statusCode, userCache, key, q, "")
 

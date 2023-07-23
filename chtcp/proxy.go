@@ -6,6 +6,13 @@ import (
 	"time"
 )
 
+type ReverseProxy struct {
+	Handler  HandlerFunc
+	Users    map[string]*User
+	Clusters map[string]*Cluster
+	Conn     *ClientConn
+}
+
 type Scope struct {
 	ChCluster  string
 	ChUsername string

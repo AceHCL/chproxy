@@ -101,7 +101,7 @@ func (s *scope) String() string {
 //nolint:cyclop // TODO abstract user queues to reduce complexity here.
 func (s *scope) incQueued() error {
 	if s.user.queueCh == nil && s.clusterUser.queueCh == nil {
-		// Request queues in the current scope are disabled.
+		// RequestPacket queues in the current scope are disabled.
 		return s.inc()
 	}
 

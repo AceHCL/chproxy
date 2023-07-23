@@ -7,41 +7,12 @@ import (
 	"strings"
 )
 
-type Server struct {
-	Handler      Handler
-	ReadTimeout  config.Duration
-	WriteTimeout config.Duration
-}
-
 func (h HandlerFunc) ServeTCP(conn net.Conn, readTimeout, writeTimeout config.Duration) {
 	h(conn, readTimeout, writeTimeout)
 }
 
 type Handler interface {
 	ServeTCP(conn net.Conn, readTimeout, writeTimeout config.Duration)
-}
-
-func (srv *Server) Serve(ln net.Listener) (err error) {
-	if ln == nil {
-		return fmt.Errorf("listener is nil")
-	}
-
-	go func() {
-		for {
-			conn, err := ln.Accept()
-			if err != nil {
-				continue
-			}
-			go srv.Handler.ServeTCP(conn, srv.ReadTimeout, srv.WriteTimeout)
-		}
-	}()
-	return nil
-}
-
-type ReverseProxy struct {
-	Users    map[string]*User
-	Clusters map[string]*Cluster
-	Conn     *ClientConn
 }
 
 func (p *ReverseProxy) LoadConfig(cfg *config.Config) (err error) {
@@ -181,7 +152,7 @@ func (p *ReverseProxy) Serve() (err error) {
 	for {
 		query := conn.Query
 		query.QueryID, query.Query = "", ""
-		end, err := conn.ReceiveRequest()
+		end, err := conn.requestPacket()
 		if err != nil {
 			if err := conn.UnexpectedException(err); err != nil {
 				return err
@@ -190,7 +161,7 @@ func (p *ReverseProxy) Serve() (err error) {
 		if !end {
 			continue
 		}
-		if err = conn.ProcessRequest(); err != nil {
+		if err = conn.processRequest(); err != nil {
 			if err := conn.ResponseException(err); err != nil {
 				return fmt.Errorf("response exception error: %w", err)
 			}

@@ -101,7 +101,7 @@ func initMetrics(cfg *config.Config) {
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "request_queue_size",
-			Help:      "Request queue sizes at the current time",
+			Help:      "RequestPacket queue sizes at the current time",
 		},
 		[]string{"user", "cluster", "cluster_user"},
 	)
@@ -197,7 +197,7 @@ func initMetrics(cfg *config.Config) {
 		prometheus.SummaryOpts{
 			Namespace:  namespace,
 			Name:       "request_duration_seconds",
-			Help:       "Request duration. Includes possible wait time in the queue",
+			Help:       "RequestPacket duration. Includes possible wait time in the queue",
 			Objectives: map[float64]float64{0.5: 1e-1, 0.9: 1e-2, 0.99: 1e-3, 0.999: 1e-4, 1: 1e-5},
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},

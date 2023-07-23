@@ -199,25 +199,16 @@ func listenAndServe(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) erro
 }
 
 func serveTCP(cfg config.TCP) {
-	var h chtcp.Handler
 	ln := newListener(cfg.ListenAddr)
 
-	h = chtcp.HandlerFunc(serveTCPHandler)
-	if err := listenAndServeTCP(ln, h, cfg.TimeoutCfg); err != nil {
+	if err := listenAndServeTCP(ln, cfg.TimeoutCfg); err != nil {
 		log.Fatalf("TCP server error on %q: %s", cfg.ListenAddr, err)
 	}
 	log.Infof("Serving chtcp on %q", cfg.ListenAddr)
 }
-func listenAndServeTCP(ln net.Listener, h chtcp.Handler, cfg config.TimeoutCfg) error {
-	serverTCP := newServerTCP(ln, h, cfg)
-	return serverTCP.Serve(ln)
-}
-func newServerTCP(ln net.Listener, h chtcp.Handler, cfg config.TimeoutCfg) *chtcp.Server {
-	return &chtcp.Server{
-		Handler:      h,
-		ReadTimeout:  cfg.ReadTimeout,
-		WriteTimeout: cfg.WriteTimeout,
-	}
+func listenAndServeTCP(ln net.Listener, cfg config.TimeoutCfg) error {
+	server := chtcp.NewServer(ln, cfg)
+	return server.Serve()
 }
 
 var promHandler = promhttp.Handler()
@@ -279,16 +270,6 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Connection", "close")
 		respondWith(rw, err, http.StatusBadRequest)
 	}
-}
-
-func serveTCPHandler(conn net.Conn, readTimeout, writeTimeout config.Duration) {
-	clientConn := chtcp.NewClientConn(conn, readTimeout, writeTimeout)
-	if err := clientConn.Hello(); err != nil {
-		_ = clientConn.ResponseException(err)
-		return
-	}
-	proxy.ServeTCP(clientConn)
-	defer func() { clientConn.Close() }()
 }
 
 func loadConfig() (*config.Config, error) {

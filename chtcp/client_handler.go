@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-func (client *clientInfo) decodeClientInfo(decoder *binary.Decoder, revision uint64) (err error) {
+func (client *clientInfo) decode(decoder *binary.Decoder, revision uint64) (err error) {
 	clientQueryInitial, err := decoder.UInt8()
 	fmt.Println(clientQueryInitial)
 	initialUser, err := decoder.String()
@@ -65,19 +65,20 @@ func (client *clientInfo) decodeClientInfo(decoder *binary.Decoder, revision uin
 	return nil
 }
 
-func (conn *ClientConn) ResponseException(err error) error {
-	exception := &Exception{}
-	msg := err.Error()
-	exception.Message = msg
-	return exception.Decode(conn.encoder, ServerInfo.Revision, conn.clientRevision)
-}
 func (conn *ClientConn) ResponseOK() error {
 	if err := conn.encoder.Uvarint(protocol.ServerEndOfStream); err != nil {
 		return err
 	}
 	return conn.encoder.Flush()
 }
-func (conn *ClientConn) ReceiveRequest() (bool, error) {
+
+func (conn *ClientConn) ResponseException(err error) error {
+	exception := &Exception{}
+	msg := err.Error()
+	exception.Message = msg
+	return exception.Decode(conn.encoder, ServerInfo.Revision, conn.clientRevision)
+}
+func (conn *ClientConn) requestPacket() (bool, error) {
 	decoder := conn.decoder
 	decoder.SelectCompress(false)
 	packet, err := decoder.UInt8()
@@ -111,7 +112,7 @@ func (conn *ClientConn) ReceiveRequest() (bool, error) {
 	}
 	return false, nil
 }
-func (conn *ClientConn) ProcessRequest() error {
+func (conn *ClientConn) processRequest() error {
 	queryType := conn.Query.queryType
 	switch queryType {
 	case InsertType:
@@ -278,7 +279,7 @@ func (conn *ClientConn) receiveQuery() (*ClientQuery, error) {
 	query.QueryID = queryID
 
 	clientInfo := &clientInfo{}
-	if err := clientInfo.decodeClientInfo(decoder, ServerInfo.Revision); err != nil {
+	if err := clientInfo.decode(decoder, ServerInfo.Revision); err != nil {
 		return nil, err
 	}
 	settings := &settingsInfo{}
@@ -323,19 +324,19 @@ func (conn *ClientConn) helloReceived() error {
 
 	clientName, err := conn.decoder.String()
 	if err != nil {
-		return fmt.Errorf("could not decodeClientInfo client clientName: %w", err)
+		return fmt.Errorf("could not decode client clientName: %w", err)
 	}
 	clientVersionMajor, err := conn.decoder.Uvarint()
 	if err != nil {
-		return fmt.Errorf("could not decodeClientInfo client major version: %w", err)
+		return fmt.Errorf("could not decode client major version: %w", err)
 	}
 	clientVersionMinor, err := conn.decoder.Uvarint()
 	if err != nil {
-		return fmt.Errorf("could not decodeClientInfo client minor version: %w", err)
+		return fmt.Errorf("could not decode client minor version: %w", err)
 	}
 	clientRevision, err := conn.decoder.Uvarint()
 	if err != nil {
-		return fmt.Errorf("could not decodeClientInfo client revision: %w", err)
+		return fmt.Errorf("could not decode client revision: %w", err)
 	}
 	log.Debugf("hello <-[clientName: %s,clientMajorVersion: %d,clientMinorVersion: %d,clientRevision: %d]", clientName, clientVersionMajor, clientVersionMinor, clientRevision)
 	conn.clientRevision = clientRevision
