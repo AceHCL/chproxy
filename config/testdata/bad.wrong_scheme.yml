@@ -9,5 +9,5 @@ users:
 
 clusters:
   - name: "second cluster"
-    scheme: "tcp"
+    scheme: "chtcp"
     nodes: ["127.0.1.1:8123"]

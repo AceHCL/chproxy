@@ -5,7 +5,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"github.com/contentsquare/chproxy/tcp"
+	"github.com/contentsquare/chproxy/chtcp"
 	"net"
 	"net/http"
 	"os"
@@ -131,7 +131,7 @@ func newListener(listenAddr string) net.Listener {
 	network := "tcp4"
 	if *enableTCP6 {
 		// Enable listening on both tcp4 and tcp6
-		network = "tcp"
+		network = "chtcp"
 	}
 	ln, err := net.Listen(network, listenAddr)
 	if err != nil {
@@ -199,21 +199,21 @@ func listenAndServe(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) erro
 }
 
 func serveTCP(cfg config.TCP) {
-	var h tcp.Handler
+	var h chtcp.Handler
 	ln := newListener(cfg.ListenAddr)
 
-	h = tcp.HandlerFunc(serveTCPHandler)
+	h = chtcp.HandlerFunc(serveTCPHandler)
 	if err := listenAndServeTCP(ln, h, cfg.TimeoutCfg); err != nil {
 		log.Fatalf("TCP server error on %q: %s", cfg.ListenAddr, err)
 	}
-	log.Infof("Serving tcp on %q", cfg.ListenAddr)
+	log.Infof("Serving chtcp on %q", cfg.ListenAddr)
 }
-func listenAndServeTCP(ln net.Listener, h tcp.Handler, cfg config.TimeoutCfg) error {
+func listenAndServeTCP(ln net.Listener, h chtcp.Handler, cfg config.TimeoutCfg) error {
 	serverTCP := newServerTCP(ln, h, cfg)
 	return serverTCP.Serve(ln)
 }
-func newServerTCP(ln net.Listener, h tcp.Handler, cfg config.TimeoutCfg) *tcp.Server {
-	return &tcp.Server{
+func newServerTCP(ln net.Listener, h chtcp.Handler, cfg config.TimeoutCfg) *chtcp.Server {
+	return &chtcp.Server{
 		Handler:      h,
 		ReadTimeout:  cfg.ReadTimeout,
 		WriteTimeout: cfg.WriteTimeout,
@@ -282,7 +282,7 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 }
 
 func serveTCPHandler(conn net.Conn, readTimeout, writeTimeout config.Duration) {
-	clientConn := tcp.NewClientConn(conn, readTimeout, writeTimeout)
+	clientConn := chtcp.NewClientConn(conn, readTimeout, writeTimeout)
 	if err := clientConn.Hello(); err != nil {
 		_ = clientConn.ResponseException(err)
 		return

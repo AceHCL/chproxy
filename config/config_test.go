@@ -383,7 +383,7 @@ func TestBadConfig(t *testing.T) {
 		{
 			"wrong scheme",
 			"testdata/bad.wrong_scheme.yml",
-			"`cluster.scheme` must be `http` or `https`, got \"tcp\" instead for \"second cluster\"",
+			"`cluster.scheme` must be `http` or `https`, got \"chtcp\" instead for \"second cluster\"",
 		},
 		{
 			"empty https",

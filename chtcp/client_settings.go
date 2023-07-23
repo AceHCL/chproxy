@@ -1,4 +1,4 @@
-package tcp
+package chtcp
 
 import (
 	"fmt"
@@ -21,62 +21,6 @@ const (
 type querySettingInfo struct {
 	name   string
 	qsType querySettingType
-}
-
-func (setting *querySettingInfo) getValue(decoder *binary.Decoder) (string, error) {
-	switch setting.qsType {
-	case uintQS, timeQS:
-		value, err := decoder.Uvarint()
-		if err != nil {
-			return "", err
-		}
-		return strconv.FormatUint(value, 10), nil
-	case intQS:
-		value, err := decoder.Int64()
-		if err != nil {
-			return "", err
-		}
-		return strconv.FormatInt(value, 10), nil
-	case boolQS:
-		val, err := decoder.Bool()
-		if err != nil {
-			return "", err
-		}
-		return strconv.FormatBool(val), nil
-	default:
-		return "", fmt.Errorf("not support setting type")
-	}
-}
-
-type settingsInfo struct {
-}
-
-func (setting *settingsInfo) deserialize(decoder *binary.Decoder) (map[string]string, error) {
-	settings := make(map[string]string)
-	for {
-		name, err := decoder.String()
-		if err != nil {
-			return nil, fmt.Errorf("get query setting name error")
-		}
-		if name == "" {
-			break
-		}
-		for i, info := range querySettingList {
-			if (len(querySettingList) - 1) == i {
-				return nil, fmt.Errorf("proxy not contains this setting name: %s", name)
-			}
-			if !strings.EqualFold(info.name, name) {
-				continue
-			}
-			value, err := info.getValue(decoder)
-			if err != nil {
-				return nil, err
-			}
-			settings[name] = value
-			break
-		}
-	}
-	return settings, nil
 }
 
 // all possible query settings
@@ -269,4 +213,55 @@ var querySettingList = []querySettingInfo{
 	{"http_receive_timeout", timeQS},
 	{"max_execution_time", timeQS},
 	{"timeout_before_checking_execution_speed", timeQS},
+}
+
+func (setting *querySettingInfo) getValue(decoder *binary.Decoder) (string, error) {
+	switch setting.qsType {
+	case uintQS, intQS:
+		value, err := decoder.Uvarint()
+		if err != nil {
+			return "", err
+		}
+		return strconv.FormatUint(value, 10), nil
+	case boolQS:
+		val, err := decoder.Uvarint()
+		if err != nil {
+			return "", err
+		}
+		return strconv.FormatUint(val, 10), nil
+	default:
+		return "", fmt.Errorf("not support setting type")
+	}
+}
+
+type settingsInfo struct {
+}
+
+func (setting *settingsInfo) decode(decoder *binary.Decoder, revision uint64) (map[string]string, error) {
+	settings := make(map[string]string)
+	for {
+		key, err := decoder.String()
+		if err != nil {
+			return nil, fmt.Errorf("get query setting key error")
+		}
+		if key == "" {
+			break
+		}
+		for i, info := range querySettingList {
+			if (len(querySettingList) - 1) == i {
+				return nil, fmt.Errorf("proxy not contains this setting key: %s", key)
+			}
+			if !strings.EqualFold(info.name, key) {
+				continue
+			}
+			value, err := info.getValue(decoder)
+
+			if err != nil {
+				return nil, err
+			}
+			settings[key] = value
+			break
+		}
+	}
+	return settings, nil
 }

@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/contentsquare/chproxy/tcp"
+	"github.com/contentsquare/chproxy/chtcp"
 	"io"
 	"io/ioutil"
 	"net"
@@ -33,8 +33,8 @@ const failedTransactionPrefix = "[concurrent query failed]"
 type reverseProxy struct {
 	rp *httputil.ReverseProxy
 
-	//add tcp proxy
-	trp *ReverseProxy
+	//add chtcp proxy
+	trp *chtcp.ReverseProxy
 
 	// configLock serializes access to applyConfig.
 	// It protects reload* fields.
@@ -82,7 +82,7 @@ func newReverseProxy(cfgCp *config.ConnectionPool) *reverseProxy {
 			// are handled and logged in the code below.
 			ErrorLog: log.NilLogger,
 		},
-		trp:                 &ReverseProxy{},
+		trp:                 &chtcp.ReverseProxy{},
 		reloadSignal:        make(chan struct{}),
 		reloadWG:            sync.WaitGroup{},
 		maxIdleConns:        cfgCp.MaxIdleConnsPerHost,
@@ -90,14 +90,14 @@ func newReverseProxy(cfgCp *config.ConnectionPool) *reverseProxy {
 	}
 }
 
-func (rp *reverseProxy) ServeTCP(clientConn *tcp.ClientConn) {
+func (rp *reverseProxy) ServeTCP(clientConn *chtcp.ClientConn) {
 	rp.trp.Conn = clientConn
 	if err := rp.trp.Serve(); err != nil {
 		if err == io.EOF {
 			log.Debugf("eof: %w", err)
 			return
 		}
-		log.Errorf("tcp reverse proxy error,username: %s", clientConn.Username)
+		log.Errorf("chtcp reverse proxy error,username: %s", clientConn.Username)
 		_ = clientConn.ResponseException(err)
 	}
 }
@@ -628,7 +628,7 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 	defer rp.configLock.Unlock()
 
 	clusters, err := newClusters(cfg.Clusters)
-	rp.trp.loadConfig(cfg)
+	err = rp.trp.LoadConfig(cfg)
 	if err != nil {
 		return err
 	}

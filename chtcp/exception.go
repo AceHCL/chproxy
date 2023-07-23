@@ -1,4 +1,4 @@
-package tcp
+package chtcp
 
 import (
 	"fmt"
@@ -18,7 +18,7 @@ func (e *Exception) Error() string {
 	return fmt.Sprintf("code: %d,message: %s", e.Code, e.Message)
 }
 
-func (e *Exception) Write(encoder *binary.Encoder, serverRevision uint64, clientRevision uint64) error {
+func (e *Exception) Decode(encoder *binary.Encoder, serverRevision uint64, clientRevision uint64) error {
 	if err := encoder.Uvarint(protocol.ServerException); err != nil {
 		return err
 	}
@@ -37,7 +37,7 @@ func (e *Exception) Write(encoder *binary.Encoder, serverRevision uint64, client
 	if e.nested != nil {
 		ex, ok := e.nested.(*Exception)
 		if ok {
-			err := ex.Write(encoder, serverRevision, clientRevision)
+			err := ex.Decode(encoder, serverRevision, clientRevision)
 			if err != nil {
 				return nil
 			}

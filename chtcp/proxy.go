@@ -1,4 +1,4 @@
-package tcp
+package chtcp
 
 import (
 	"github.com/contentsquare/chproxy/config"

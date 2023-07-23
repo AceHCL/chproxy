@@ -1,19 +1,50 @@
-package main
+package chtcp
 
 import (
 	"fmt"
 	"github.com/contentsquare/chproxy/config"
-	"github.com/contentsquare/chproxy/tcp"
+	"net"
 	"strings"
 )
 
-type ReverseProxy struct {
-	Users    map[string]*tcp.User
-	Clusters map[string]*tcp.Cluster
-	Conn     *tcp.ClientConn
+type Server struct {
+	Handler      Handler
+	ReadTimeout  config.Duration
+	WriteTimeout config.Duration
 }
 
-func (p *ReverseProxy) loadConfig(cfg *config.Config) (err error) {
+func (h HandlerFunc) ServeTCP(conn net.Conn, readTimeout, writeTimeout config.Duration) {
+	h(conn, readTimeout, writeTimeout)
+}
+
+type Handler interface {
+	ServeTCP(conn net.Conn, readTimeout, writeTimeout config.Duration)
+}
+
+func (srv *Server) Serve(ln net.Listener) (err error) {
+	if ln == nil {
+		return fmt.Errorf("listener is nil")
+	}
+
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				continue
+			}
+			go srv.Handler.ServeTCP(conn, srv.ReadTimeout, srv.WriteTimeout)
+		}
+	}()
+	return nil
+}
+
+type ReverseProxy struct {
+	Users    map[string]*User
+	Clusters map[string]*Cluster
+	Conn     *ClientConn
+}
+
+func (p *ReverseProxy) LoadConfig(cfg *config.Config) (err error) {
 	if p.Clusters, err = p.newClusters(cfg.Clusters); err != nil {
 		return err
 	}
@@ -22,8 +53,8 @@ func (p *ReverseProxy) loadConfig(cfg *config.Config) (err error) {
 	}
 	return nil
 }
-func (p *ReverseProxy) newClusters(cfg []config.Cluster) (map[string]*tcp.Cluster, error) {
-	clusters := make(map[string]*tcp.Cluster, len(cfg))
+func (p *ReverseProxy) newClusters(cfg []config.Cluster) (map[string]*Cluster, error) {
+	clusters := make(map[string]*Cluster, len(cfg))
 	for _, c := range cfg {
 		if _, ok := clusters[c.Name]; ok {
 			return nil, fmt.Errorf("duplicate config for cluster %q", c.Name)
@@ -36,15 +67,15 @@ func (p *ReverseProxy) newClusters(cfg []config.Cluster) (map[string]*tcp.Cluste
 	}
 	return clusters, nil
 }
-func (p *ReverseProxy) newCluster(cfg config.Cluster) (*tcp.Cluster, error) {
-	replicas := make([]*tcp.Replica, len(cfg.Replicas))
+func (p *ReverseProxy) newCluster(cfg config.Cluster) (*Cluster, error) {
+	replicas := make([]*Replica, len(cfg.Replicas))
 	for i, r := range cfg.Replicas {
 		replicas[i].Name = r.Name
 		replicas[i].Nodes = r.Nodes
 	}
-	cUsers := make(map[string]*tcp.ClusterUser, len(cfg.ClusterUsers))
+	cUsers := make(map[string]*ClusterUser, len(cfg.ClusterUsers))
 	for _, cu := range cfg.ClusterUsers {
-		cUsers[cu.Name] = &tcp.ClusterUser{
+		cUsers[cu.Name] = &ClusterUser{
 			Name:     cu.Name,
 			Password: cu.Password,
 		}
@@ -53,7 +84,7 @@ func (p *ReverseProxy) newCluster(cfg config.Cluster) (*tcp.Cluster, error) {
 	for i, node := range cfg.Nodes {
 		nodes[i] = node
 	}
-	return &tcp.Cluster{
+	return &Cluster{
 		Name:     cfg.Name,
 		Replicas: replicas,
 		Users:    cUsers,
@@ -61,8 +92,8 @@ func (p *ReverseProxy) newCluster(cfg config.Cluster) (*tcp.Cluster, error) {
 	}, nil
 }
 
-func (p *ReverseProxy) newUsers(cfg []config.User) (map[string]*tcp.User, error) {
-	users := make(map[string]*tcp.User, len(cfg))
+func (p *ReverseProxy) newUsers(cfg []config.User) (map[string]*User, error) {
+	users := make(map[string]*User, len(cfg))
 	for _, c := range cfg {
 		if _, ok := users[c.Name]; ok {
 			return nil, fmt.Errorf("duplicate config for user %q", c.Name)
@@ -75,8 +106,8 @@ func (p *ReverseProxy) newUsers(cfg []config.User) (map[string]*tcp.User, error)
 	}
 	return users, nil
 }
-func (p *ReverseProxy) newUser(cfg config.User) (*tcp.User, error) {
-	return &tcp.User{
+func (p *ReverseProxy) newUser(cfg config.User) (*User, error) {
+	return &User{
 		Name:      cfg.Name,
 		Password:  cfg.Password,
 		ToUser:    cfg.ToUser,
@@ -84,7 +115,7 @@ func (p *ReverseProxy) newUser(cfg config.User) (*tcp.User, error) {
 	}, nil
 }
 
-func (p *ReverseProxy) getScope() (*tcp.Scope, error) {
+func (p *ReverseProxy) getScope() (*Scope, error) {
 	proxyUserInfo, err := p.getAuth()
 	if err != nil {
 		return nil, err
@@ -101,14 +132,14 @@ func (p *ReverseProxy) getScope() (*tcp.Scope, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &tcp.Scope{
+	return &Scope{
 		ChCluster:  chInfo.Name,
 		ChUsername: chUserInfo.Name,
 		ChPassword: chUserInfo.Password,
 		Node:       node,
 	}, nil
 }
-func (p *ReverseProxy) getAuth() (*tcp.User, error) {
+func (p *ReverseProxy) getAuth() (*User, error) {
 	for proxyUser, proxyInfo := range p.Users {
 		if strings.EqualFold(p.Conn.Username, proxyUser) && strings.EqualFold(p.Conn.Password, proxyInfo.Password) {
 			return proxyInfo, nil
@@ -116,7 +147,7 @@ func (p *ReverseProxy) getAuth() (*tcp.User, error) {
 	}
 	return nil, fmt.Errorf("username or password not support")
 }
-func (p *ReverseProxy) getCluster(user *tcp.User) (*tcp.Cluster, error) {
+func (p *ReverseProxy) getCluster(user *User) (*Cluster, error) {
 	for name, clusterInfo := range p.Clusters {
 		if strings.EqualFold(user.ToCluster, name) {
 			return clusterInfo, nil
@@ -124,7 +155,7 @@ func (p *ReverseProxy) getCluster(user *tcp.User) (*tcp.Cluster, error) {
 	}
 	return nil, fmt.Errorf("not found availale cluster")
 }
-func (p *ReverseProxy) getClusterUser(cluster *tcp.Cluster, chUsername string) (*tcp.ClusterUser, error) {
+func (p *ReverseProxy) getClusterUser(cluster *Cluster, chUsername string) (*ClusterUser, error) {
 	for name, clusterUserInfo := range cluster.Users {
 		if strings.EqualFold(name, chUsername) {
 			return clusterUserInfo, nil
@@ -132,7 +163,7 @@ func (p *ReverseProxy) getClusterUser(cluster *tcp.Cluster, chUsername string) (
 	}
 	return nil, fmt.Errorf("not found to user available")
 }
-func (p *ReverseProxy) getRandomNode(cluster *tcp.Cluster) (string, error) {
+func (p *ReverseProxy) getRandomNode(cluster *Cluster) (string, error) {
 	if len(cluster.TCPNodes) > 0 {
 		return cluster.TCPNodes[0], nil
 	}
