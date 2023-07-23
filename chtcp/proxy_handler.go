@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"github.com/contentsquare/chproxy/config"
 	"github.com/contentsquare/chproxy/log"
+	"net"
 	"strings"
 )
 
-func (p *ReverseProxy) LoadConfig(cfg *config.Config) (err error) {
+func (p *ReverseProxy) ApplyConfig(cfg *config.Config) (err error) {
 	if p.Clusters, err = p.newClusters(cfg.Clusters); err != nil {
 		return err
 	}
@@ -78,8 +79,8 @@ func (p *ReverseProxy) newUser(cfg config.User) (*User, error) {
 	}, nil
 }
 
-func (p *ReverseProxy) getScope() (*Scope, error) {
-	proxyUserInfo, err := p.getAuth()
+func (p *ReverseProxy) getScope(cliConn ClientConn) (*Scope, error) {
+	proxyUserInfo, err := p.getAuth(cliConn)
 	if err != nil {
 		return nil, err
 	}
@@ -102,9 +103,9 @@ func (p *ReverseProxy) getScope() (*Scope, error) {
 		Node:       node,
 	}, nil
 }
-func (p *ReverseProxy) getAuth() (*User, error) {
+func (p *ReverseProxy) getAuth(cliConn ClientConn) (*User, error) {
 	for proxyUser, proxyInfo := range p.Users {
-		if strings.EqualFold(p.Conn.Username, proxyUser) && strings.EqualFold(p.Conn.Password, proxyInfo.Password) {
+		if strings.EqualFold(cliConn.Username, proxyUser) && strings.EqualFold(cliConn.Password, proxyInfo.Password) {
 			return proxyInfo, nil
 		}
 	}
@@ -136,11 +137,8 @@ func (p *ReverseProxy) getRandomNode(cluster *Cluster) (string, error) {
 	return "", fmt.Errorf("not found available node ")
 }
 
-func (p *ReverseProxy) handle() (err error) {
-	conn := p.Conn
-	if conn.Scope, err = p.getScope(); err != nil {
-		return err
-	}
+func (p *ReverseProxy) handle(conn net.Conn, readTimeout, writeTime config.Duration) {
+	//clientCon := NewClientConn(conn, readTimeout, writeTime)
 	for {
 		log.Debugf("test")
 		//query := conn.Query

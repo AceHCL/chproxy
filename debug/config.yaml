@@ -18,8 +18,8 @@ users:
 clusters:
   - name: "cluster_test"
     scheme: "http"
-    nodes: ["192.168.1.14:8123"]
-    tcp_nodes: ["192.168.1.14:9000"]
+    nodes: ["localhost:8123"]
+    tcp_nodes: ["localhost:9000"]
     heartbeat:
       interval: 1m
       timeout: 10s

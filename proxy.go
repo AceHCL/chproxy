@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/contentsquare/chproxy/chtcp"
 	"io"
 	"io/ioutil"
 	"net"
@@ -79,23 +78,10 @@ func newReverseProxy(cfgCp *config.ConnectionPool) *reverseProxy {
 			// are handled and logged in the code below.
 			ErrorLog: log.NilLogger,
 		},
-		trp:                 &chtcp.ReverseProxy{},
 		reloadSignal:        make(chan struct{}),
 		reloadWG:            sync.WaitGroup{},
 		maxIdleConns:        cfgCp.MaxIdleConnsPerHost,
 		maxIdleConnsPerHost: cfgCp.MaxIdleConnsPerHost,
-	}
-}
-
-func (rp *reverseProxy) ServeTCP(clientConn *chtcp.ClientConn) {
-	rp.trp.Conn = clientConn
-	if err := rp.trp.Serve(); err != nil {
-		if err == io.EOF {
-			log.Debugf("eof: %w", err)
-			return
-		}
-		log.Errorf("chtcp reverse proxy error,username: %s", clientConn.Username)
-		_ = clientConn.ResponseException(err)
 	}
 }
 
@@ -625,7 +611,6 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 	defer rp.configLock.Unlock()
 
 	clusters, err := newClusters(cfg.Clusters)
-	err = rp.trp.LoadConfig(cfg)
 	if err != nil {
 		return err
 	}

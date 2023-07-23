@@ -209,7 +209,7 @@ func serveTCP(cfg config.TCP) {
 	log.Infof("Serving chtcp on %q", cfg.ListenAddr)
 }
 func listenAndServeTCP(ln net.Listener, cfg config.TimeoutCfg) error {
-	server := chtcp.NewServer(ln, cfg)
+	server := chtcp.NewServer(ln, cfg, proxyTCP)
 	return server.Serve()
 }
 
@@ -301,6 +301,9 @@ func applyConfig(cfg *config.Config) error {
 	}
 	if proxyTCP == nil {
 		proxyTCP = chtcp.NewReversionProxy()
+	}
+	if err := proxyTCP.ApplyConfig(cfg); err != nil {
+		return err
 	}
 	allowedNetworksHTTP.Store(&cfg.Server.HTTP.AllowedNetworks)
 	allowedNetworksHTTPS.Store(&cfg.Server.HTTPS.AllowedNetworks)

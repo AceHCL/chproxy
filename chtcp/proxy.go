@@ -7,14 +7,12 @@ import (
 )
 
 type ReverseProxy struct {
-	Handler  HandlerFunc
 	Users    map[string]*User
 	Clusters map[string]*Cluster
-	Conn     *ClientConn
 }
 
 func NewReversionProxy() *ReverseProxy {
-
+	return &ReverseProxy{}
 }
 
 type Scope struct {

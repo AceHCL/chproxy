@@ -30,10 +30,11 @@ type Server struct {
 	writeTimeout config.Duration
 }
 
-func NewServer(ln net.Listener, cfg config.TimeoutCfg) *Server {
+func NewServer(ln net.Listener, cfg config.TimeoutCfg, proxy *ReverseProxy) *Server {
 
 	return &Server{
 		Listener:     ln,
+		proxy:        proxy,
 		readTimeout:  cfg.ReadTimeout,
 		writeTimeout: cfg.WriteTimeout,
 	}
