@@ -13,6 +13,10 @@ type ReverseProxy struct {
 	Conn     *ClientConn
 }
 
+func NewReversionProxy() *ReverseProxy {
+
+}
+
 type Scope struct {
 	ChCluster  string
 	ChUsername string

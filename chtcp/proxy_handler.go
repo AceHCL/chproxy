@@ -3,17 +3,9 @@ package chtcp
 import (
 	"fmt"
 	"github.com/contentsquare/chproxy/config"
-	"net"
+	"github.com/contentsquare/chproxy/log"
 	"strings"
 )
-
-func (h HandlerFunc) ServeTCP(conn net.Conn, readTimeout, writeTimeout config.Duration) {
-	h(conn, readTimeout, writeTimeout)
-}
-
-type Handler interface {
-	ServeTCP(conn net.Conn, readTimeout, writeTimeout config.Duration)
-}
 
 func (p *ReverseProxy) LoadConfig(cfg *config.Config) (err error) {
 	if p.Clusters, err = p.newClusters(cfg.Clusters); err != nil {
@@ -144,27 +136,28 @@ func (p *ReverseProxy) getRandomNode(cluster *Cluster) (string, error) {
 	return "", fmt.Errorf("not found available node ")
 }
 
-func (p *ReverseProxy) Serve() (err error) {
+func (p *ReverseProxy) handle() (err error) {
 	conn := p.Conn
 	if conn.Scope, err = p.getScope(); err != nil {
 		return err
 	}
 	for {
-		query := conn.Query
-		query.QueryID, query.Query = "", ""
-		end, err := conn.requestPacket()
-		if err != nil {
-			if err := conn.UnexpectedException(err); err != nil {
-				return err
-			}
-		}
-		if !end {
-			continue
-		}
-		if err = conn.processRequest(); err != nil {
-			if err := conn.ResponseException(err); err != nil {
-				return fmt.Errorf("response exception error: %w", err)
-			}
-		}
+		log.Debugf("test")
+		//query := conn.Query
+		//query.QueryID, query.Query = "", ""
+		//end, err := conn.requestPacket()
+		//if err != nil {
+		//	if err := conn.UnexpectedException(err); err != nil {
+		//		return err
+		//	}
+		//}
+		//if !end {
+		//	continue
+		//}
+		//if err = conn.processRequest(); err != nil {
+		//	if err := conn.ResponseException(err); err != nil {
+		//		return fmt.Errorf("response exception error: %w", err)
+		//	}
+		//}
 	}
 }

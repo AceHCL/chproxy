@@ -24,17 +24,17 @@ var ServerInfo = &data.ServerInfo{
 }
 
 type Server struct {
-	Handler Handler
 	net.Listener
-	ReadTimeout  config.Duration
-	WriteTimeout config.Duration
+	proxy        *ReverseProxy
+	readTimeout  config.Duration
+	writeTimeout config.Duration
 }
 
 func NewServer(ln net.Listener, cfg config.TimeoutCfg) *Server {
 
 	return &Server{
-		Handler:      nil,
-		ReadTimeout:  cfg.ReadTimeout,
-		WriteTimeout: cfg.WriteTimeout,
+		Listener:     ln,
+		readTimeout:  cfg.ReadTimeout,
+		writeTimeout: cfg.WriteTimeout,
 	}
 }

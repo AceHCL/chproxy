@@ -714,10 +714,10 @@ func TestConfigTimeouts(t *testing.T) {
 			}
 			got := cfg.Server.HTTP.TimeoutCfg
 			if got.ReadTimeout != tc.expectedCfg.ReadTimeout {
-				t.Fatalf("got ReadTimeout %v; expected to have: %v", got.ReadTimeout, tc.expectedCfg.ReadTimeout)
+				t.Fatalf("got readTimeout %v; expected to have: %v", got.ReadTimeout, tc.expectedCfg.ReadTimeout)
 			}
 			if got.WriteTimeout != tc.expectedCfg.WriteTimeout {
-				t.Fatalf("got WriteTimeout %v; expected to have: %v", got.WriteTimeout, tc.expectedCfg.WriteTimeout)
+				t.Fatalf("got writeTimeout %v; expected to have: %v", got.WriteTimeout, tc.expectedCfg.WriteTimeout)
 			}
 			if got.IdleTimeout != tc.expectedCfg.IdleTimeout {
 				t.Fatalf("got IdleTimeout %v; expected to have: %v", got.IdleTimeout, tc.expectedCfg.IdleTimeout)

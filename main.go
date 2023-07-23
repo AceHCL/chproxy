@@ -31,6 +31,8 @@ var (
 var (
 	proxy *reverseProxy
 
+	proxyTCP *chtcp.ReverseProxy
+
 	// networks allow lists
 	allowedNetworksHTTP    atomic.Value
 	allowedNetworksHTTPS   atomic.Value
@@ -180,7 +182,7 @@ func serve(cfg config.HTTP) {
 }
 
 func newServer(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) *http.Server {
-	// nolint:gosec // We already configured ReadTimeout, so no need to set ReadHeaderTimeout as well.
+	// nolint:gosec // We already configured readTimeout, so no need to set ReadHeaderTimeout as well.
 	return &http.Server{
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		Handler:      h,
@@ -296,6 +298,9 @@ func applyConfig(cfg *config.Config) error {
 	}
 	if err := proxy.applyConfig(cfg); err != nil {
 		return err
+	}
+	if proxyTCP == nil {
+		proxyTCP = chtcp.NewReversionProxy()
 	}
 	allowedNetworksHTTP.Store(&cfg.Server.HTTP.AllowedNetworks)
 	allowedNetworksHTTPS.Store(&cfg.Server.HTTPS.AllowedNetworks)

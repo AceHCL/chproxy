@@ -3,8 +3,6 @@ package chtcp
 import (
 	"fmt"
 	"github.com/ClickHouse/clickhouse-go/lib/binary"
-	"github.com/contentsquare/chproxy/config"
-	"net"
 )
 
 func ServerInfoDecode(encoder *binary.Encoder, revision uint64) error {
@@ -34,12 +32,8 @@ func (srv *Server) Serve() (err error) {
 			if err != nil {
 				continue
 			}
-			go srv.Handler.ServeTCP(conn, srv.ReadTimeout, srv.WriteTimeout)
+			go srv.proxy.handle(conn, srv.readTimeout, srv.writeTimeout)
 		}
 	}()
 	return nil
-}
-
-func (h HandlerFunc) DefaultHandler(conn net.Conn, readTimeout, writeTimeout config.Duration) {
-
 }

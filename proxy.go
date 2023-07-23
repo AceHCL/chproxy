@@ -33,9 +33,6 @@ const failedTransactionPrefix = "[concurrent query failed]"
 type reverseProxy struct {
 	rp *httputil.ReverseProxy
 
-	//add chtcp proxy
-	trp *chtcp.ReverseProxy
-
 	// configLock serializes access to applyConfig.
 	// It protects reload* fields.
 	configLock sync.Mutex
@@ -635,7 +632,7 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 
 	caches := make(map[string]*cache.AsyncCache, len(cfg.Caches))
 	defer func() {
-		// caches is swapped with old caches from Serve.caches
+		// caches is swapped with old caches from handle.caches
 		// on successful config reload - see the end of reloadConfig.
 		for _, tmpCache := range caches {
 			// Speed up applyConfig by closing caches in background,
@@ -691,7 +688,7 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 	rp.reloadSignal = make(chan struct{})
 	rp.restartWithNewConfig(caches, clusters, users)
 
-	// Substitute old configs with the new configs in Serve.
+	// Substitute old configs with the new configs in handle.
 	// All the currently running requests will continue with old configs,
 	// while all the new requests will use new configs.
 	rp.lock.Lock()

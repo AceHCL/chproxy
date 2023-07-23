@@ -241,7 +241,7 @@ type Server struct {
 	HTTPS HTTPS `yaml:"https,omitempty"`
 
 	// Optional TCP configuration
-	TCP TCP `yaml:"chtcp,omitempty"`
+	TCP TCP `yaml:"tcp,omitempty"`
 
 	// Optional metrics handler configuration
 	Metrics Metrics `yaml:"metrics,omitempty"`
