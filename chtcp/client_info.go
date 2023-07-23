@@ -38,30 +38,23 @@ type ClientConn struct {
 
 func NewClientConn(conn net.Conn, readTimeout, writeTimeout config.Duration) *ClientConn {
 	buffer := bufio.NewWriter(conn)
-	connection := &ClientConnInfo{
+	now := time.Now().Add(+time.Minute * 10)
+	conn.SetReadDeadline(now)
+	conn.SetWriteDeadline(now)
+	cliConn := &ClientConnInfo{
 		readTimeout:  readTimeout,
 		writeTimeout: writeTimeout,
 		Conn:         conn,
 		buffer:       bufio.NewReader(conn),
 	}
-	decoder := binary.NewDecoderWithCompress(connection)
+	decoder := binary.NewDecoderWithCompress(cliConn)
 	encoder := binary.NewEncoderWithCompress(buffer)
 	return &ClientConn{
-		cliConn: connection,
+		cliConn: cliConn,
 		decoder: decoder,
 		encoder: encoder,
 		Query:   &ClientQuery{},
 	}
-}
-
-type ClientConnInfo struct {
-	net.Conn
-	buffer              *bufio.Reader
-	closed              bool
-	readTimeout         config.Duration
-	writeTimeout        config.Duration
-	lastReadExpireTime  time.Time
-	lastWriteExpireTime time.Time
 }
 
 type ClientQuery struct {

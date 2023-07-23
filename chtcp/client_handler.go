@@ -382,10 +382,3 @@ func (conn *ClientConn) Close() {
 	}
 	conn.cliConn.Close()
 }
-
-func (conn *ClientConnInfo) Close() {
-	if !conn.closed {
-		conn.closed = true
-		_ = conn.Conn.Close()
-	}
-}
