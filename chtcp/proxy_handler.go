@@ -138,24 +138,23 @@ func (p *ReverseProxy) getRandomNode(cluster *Cluster) (string, error) {
 }
 
 func (p *ReverseProxy) handle(conn net.Conn, readTimeout, writeTime config.Duration) {
-	//clientCon := NewClientConn(conn, readTimeout, writeTime)
+	clientCon := NewClientConn(conn, readTimeout, writeTime)
 	for {
-		log.Debugf("test")
-		//query := conn.Query
-		//query.QueryID, query.Query = "", ""
-		//end, err := conn.requestPacket()
-		//if err != nil {
-		//	if err := conn.UnexpectedException(err); err != nil {
-		//		return err
-		//	}
-		//}
-		//if !end {
-		//	continue
-		//}
-		//if err = conn.processRequest(); err != nil {
-		//	if err := conn.ResponseException(err); err != nil {
-		//		return fmt.Errorf("response exception error: %w", err)
-		//	}
-		//}
+		query := clientCon.Query
+		query.QueryID, query.Query = "", ""
+		end, err := clientCon.requestPacket()
+		if err != nil {
+			if err := clientCon.UnexpectedException(err); err != nil {
+				log.Errorf("request packet error")
+			}
+		}
+		if !end {
+			continue
+		}
+		if err = clientCon.processRequest(); err != nil {
+			if err := clientCon.ResponseException(err); err != nil {
+				log.Errorf("process request error")
+			}
+		}
 	}
 }

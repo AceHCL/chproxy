@@ -83,14 +83,14 @@ func (conn *ClientConn) requestPacket() (bool, error) {
 	decoder.SelectCompress(false)
 	packet, err := decoder.UInt8()
 	if err != nil {
-		return false, err
+		return false, nil
 	}
 	switch packet {
 	case protocol.ClientHello:
 		if err := conn.Hello(); err != nil {
 			return false, err
 		}
-		return true, nil
+		return false, nil
 	case protocol.ClientPing:
 		if err := conn.receivePing(); err != nil {
 			return false, err
@@ -130,15 +130,8 @@ func (conn *ClientConn) processRequest() error {
 	}
 	return fmt.Errorf("not support qyery type error")
 }
-func (conn *ClientConn) Hello() error {
-	packet, err := conn.decoder.UInt8()
-	if err != nil {
-		return err
-	}
+func (conn *ClientConn) Hello() (err error) {
 
-	if packet != protocol.ClientHello {
-		//exception
-	}
 	if err = conn.helloReceived(); err != nil {
 		return err
 	}
