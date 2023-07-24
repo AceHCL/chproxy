@@ -3,7 +3,7 @@ package chtcp
 import (
 	"fmt"
 	"github.com/contentsquare/chproxy/config"
-	"github.com/contentsquare/chproxy/log"
+	"io"
 	"net"
 	"strings"
 )
@@ -139,22 +139,14 @@ func (p *ReverseProxy) getRandomNode(cluster *Cluster) (string, error) {
 
 func (p *ReverseProxy) handle(conn net.Conn, readTimeout, writeTime config.Duration) {
 	clientCon := NewClientConn(conn, readTimeout, writeTime)
-	for {
-		query := clientCon.Query
-		query.QueryID, query.Query = "", ""
-		end, err := clientCon.requestPacket()
-		if err != nil {
-			if err := clientCon.UnexpectedException(err); err != nil {
-				log.Errorf("request packet error")
-			}
+	if err := clientCon.Hello(); err != nil {
+		_ = clientCon.ResponseException(err)
+		return
+	}
+	if err := clientCon.process(); err != nil {
+		if err == io.EOF {
+			return
 		}
-		if !end {
-			continue
-		}
-		if err = clientCon.processRequest(); err != nil {
-			if err := clientCon.ResponseException(err); err != nil {
-				log.Errorf("process request error")
-			}
-		}
+		_ = clientCon.ResponseException(err)
 	}
 }

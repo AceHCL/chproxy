@@ -382,3 +382,30 @@ func (conn *ClientConn) Close() {
 	}
 	conn.cliConn.Close()
 }
+
+func (conn *ClientConn) process() error {
+	for {
+		query := conn.Query
+		query.QueryID, query.Query = "", ""
+		end, err := conn.requestPacket()
+		if err != nil {
+			if err, ok := err.(net.Error); ok && err.Timeout() {
+				return err
+			}
+			if err != io.EOF {
+				_ = conn.ResponseException(err)
+
+			}
+			return err
+
+		}
+		if !end {
+			continue
+		}
+		if err = conn.processRequest(); err != nil {
+			if err := conn.ResponseException(err); err != nil {
+				log.Errorf("process request error")
+			}
+		}
+	}
+}
