@@ -360,7 +360,7 @@ func (conn *ClientConn) helloSend() error {
 		}
 	}
 	if ServerInfo.Revision >= DBMS_MIN_REVISION_WITH_VERSION_PATCH {
-		conn.encoder.Uvarint(20)
+		_ = conn.encoder.Uvarint(20)
 	}
 	log.Debugf("hello -> [ServerInfo: %s,ServerMajorVersion: %d,ServerMinorVersion: %d,ServerRevision: %d]", ServerInfo.Name, ServerInfo.MajorVersion, ServerInfo.MinorVersion, ServerInfo.Revision)
 	return conn.encoder.Flush()

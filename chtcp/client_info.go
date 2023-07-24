@@ -8,7 +8,6 @@ import (
 	"github.com/contentsquare/chproxy/config"
 	"net"
 	"sync"
-	"time"
 )
 
 type clientInfo struct {
@@ -38,9 +37,6 @@ type ClientConn struct {
 
 func NewClientConn(conn net.Conn, readTimeout, writeTimeout config.Duration) *ClientConn {
 	buffer := bufio.NewWriter(conn)
-	now := time.Now().Add(+time.Minute * 10)
-	conn.SetReadDeadline(now)
-	conn.SetWriteDeadline(now)
 	cliConn := &ClientConnInfo{
 		readTimeout:  readTimeout,
 		writeTimeout: writeTimeout,
