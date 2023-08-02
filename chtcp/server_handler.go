@@ -5,7 +5,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/lib/binary"
 )
 
-func ServerInfoDecode(encoder *binary.Encoder, revision uint64) error {
+func ServerInfoDecode(encoder *binary.Encoder) error {
 	if err := encoder.String(ServerInfo.Name); err != nil {
 		return err
 	}

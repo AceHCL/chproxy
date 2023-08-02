@@ -16,19 +16,17 @@ import (
 )
 
 func (client *clientInfo) decode(decoder *binary.Decoder, revision uint64) (err error) {
-	clientQueryInitial, err := decoder.UInt8()
-	fmt.Println(clientQueryInitial)
+	kind, _ := decoder.Uvarint()
+	fmt.Println(kind)
 	initialUser, err := decoder.String()
 	fmt.Println(initialUser)
 	initialQueryID, err := decoder.String()
 	fmt.Println(initialQueryID)
 	initialAddr, err := decoder.String()
 	fmt.Println(initialAddr)
-	protocolType, err := decoder.UInt8() //chtcp -1,http -2
-	fmt.Println(protocolType)
-
+	//ctype, _ := decoder.Uvarint()
+	//fmt.Println(ctype)
 	if client.osUser, err = decoder.String(); err != nil {
-
 	}
 
 	if client.hostName, err = decoder.String(); err != nil {
@@ -46,20 +44,6 @@ func (client *clientInfo) decode(decoder *binary.Decoder, revision uint64) (err 
 	}
 	if client.versionRevision, err = decoder.Uvarint(); err != nil {
 		return err
-	}
-	if revision >= protocol.DBMS_MIN_REVISION_WITH_QUOTA_KEY_IN_CLIENT_INFO {
-		if _, err = decoder.String(); err != nil {
-			return err
-		}
-	}
-	if revision >= DBMS_MIN_REVISION_WITH_VERSION_PATCH {
-		if _, err = decoder.Uvarint(); err != nil {
-			return err
-		}
-	}
-
-	if revision >= DBMS_MIN_REVISION_WITH_OPENTELEMETRY {
-		decoder.UInt8()
 	}
 
 	return nil
@@ -81,7 +65,7 @@ func (conn *ClientConn) ResponseException(err error) error {
 func (conn *ClientConn) requestPacket() (bool, error) {
 	decoder := conn.decoder
 	decoder.SelectCompress(false)
-	packet, err := decoder.UInt8()
+	packet, err := decoder.Uvarint()
 	if err != nil {
 		return false, nil
 	}
@@ -137,6 +121,10 @@ func (conn *ClientConn) Hello() (err error) {
 	}
 	if err = conn.helloSend(); err != nil {
 		return err
+	}
+	if conn.clientRevision >= DBMS_MIN_PROTOCOL_VERSION_WITH_ADDENDUM {
+		s, _ := conn.decoder.String()
+		log.Infof("addendum: %s", s)
 	}
 	return conn.encoder.Flush()
 
@@ -270,18 +258,23 @@ func (conn *ClientConn) receiveQuery() (*ClientQuery, error) {
 		return nil, err
 	}
 	query.QueryID = queryID
-
 	clientInfo := &clientInfo{}
-	if err := clientInfo.decode(decoder, ServerInfo.Revision); err != nil {
-		return nil, err
+	if conn.clientRevision >= DBMS_MIN_REVISION_WITH_CLIENT_INFO {
+		clientInfo.decode(decoder, conn.clientRevision)
 	}
+
+	quota, _ := decoder.String()
+	fmt.Println("quota: ", quota)
+
 	settings := &settingsInfo{}
 
-	if conn.querySettings, err = settings.decode(decoder, ServerInfo.Revision); err != nil {
-		return nil, err
+	if conn.clientRevision >= DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS {
+		if conn.querySettings, err = settings.decode(decoder, conn.clientRevision); err != nil {
+			return nil, err
+		}
 	}
 
-	if ServerInfo.Revision >= DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET {
+	if conn.clientRevision >= DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET {
 		decoder.String()
 	}
 
@@ -302,6 +295,11 @@ func (conn *ClientConn) receiveQuery() (*ClientQuery, error) {
 		buf[i], err = decoder.ReadByte()
 	}
 	query.Query = string(buf)
+	if conn.clientRevision >= DBMS_MIN_PROTOCOL_VERSION_WITH_PARAMETERS {
+		if conn.querySettings, err = settings.decode(decoder, conn.clientRevision); err != nil {
+			return nil, err
+		}
+	}
 	if query.queryType, err = getQueryType(query.Query); err != nil {
 		return nil, err
 	}
@@ -314,6 +312,13 @@ func (conn *ClientConn) receiveData() error {
 	return nil
 }
 func (conn *ClientConn) helloReceived() error {
+	packetType, err := conn.decoder.Uvarint()
+	if err != nil {
+		return err
+	}
+	if packetType != protocol.ClientHello {
+		return fmt.Errorf("read packet type error")
+	}
 
 	clientName, err := conn.decoder.String()
 	if err != nil {
@@ -343,24 +348,34 @@ func (conn *ClientConn) helloReceived() error {
 	return nil
 }
 func (conn *ClientConn) helloSend() error {
-	if err := conn.encoder.UInt8(protocol.ServerHello); err != nil {
+	if err := conn.encoder.Uvarint(protocol.ServerHello); err != nil {
 		return err
 	}
-	if err := ServerInfoDecode(conn.encoder, ServerInfo.Revision); err != nil {
+	if err := ServerInfoDecode(conn.encoder); err != nil {
 		return err
 	}
-	if ServerInfo.Revision >= protocol.DBMS_MIN_REVISION_WITH_SERVER_TIMEZONE {
+	if conn.clientRevision >= protocol.DBMS_MIN_REVISION_WITH_SERVER_TIMEZONE {
 		if err := conn.encoder.String("UTC"); err != nil {
 			return err
 		}
 	}
-	if ServerInfo.Revision >= DBMS_MIN_REVISION_WITH_SERVER_DISPLAY_NAME {
+	if conn.clientRevision >= DBMS_MIN_REVISION_WITH_SERVER_DISPLAY_NAME {
 		if err := conn.encoder.String(ServerInfo.Name); err != nil {
 			return err
 		}
 	}
-	if ServerInfo.Revision >= DBMS_MIN_REVISION_WITH_VERSION_PATCH {
-		_ = conn.encoder.Uvarint(20)
+	if conn.clientRevision >= DBMS_MIN_REVISION_WITH_VERSION_PATCH {
+		_ = conn.encoder.Uvarint(1)
+	}
+	if conn.clientRevision >= DBMS_MIN_PROTOCOL_VERSION_WITH_PASSWORD_COMPLEXITY_RULES {
+		rule := "aaa"
+		conn.encoder.Uvarint(1)
+		conn.encoder.String(rule)
+		conn.encoder.String("exception")
+	}
+
+	if conn.clientRevision >= DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET_V2 {
+		conn.encoder.Int64(20)
 	}
 	log.Debugf("hello -> [ServerInfo: %s,ServerMajorVersion: %d,ServerMinorVersion: %d,ServerRevision: %d]", ServerInfo.Name, ServerInfo.MajorVersion, ServerInfo.MinorVersion, ServerInfo.Revision)
 	return conn.encoder.Flush()

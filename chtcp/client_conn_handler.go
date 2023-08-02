@@ -1,7 +1,16 @@
 package chtcp
 
 func (cliConn *ClientConnInfo) Read(buffer []byte) (n int, err error) {
-	return cliConn.Conn.Read(buffer)
+	dstLen := len(buffer)
+	total := 0
+	for total < dstLen {
+		n, err := cliConn.buffer.Read(buffer[total:])
+		if err != nil {
+			return n, err
+		}
+		total += n
+	}
+	return total, nil
 }
 
 func (cliConn *ClientConnInfo) Close() {

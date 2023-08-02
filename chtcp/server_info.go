@@ -9,8 +9,8 @@ import (
 
 const (
 	VersionName  = "ChProxy"
-	VersionMajor = 21
-	VersionMinor = 3
+	VersionMajor = 23
+	VersionMinor = 7
 )
 
 type HandlerFunc func(conn net.Conn, readTimeout, writeTimeout config.Duration)
@@ -19,7 +19,7 @@ var ServerInfo = &data.ServerInfo{
 	Name:         VersionName,
 	MajorVersion: VersionMajor,
 	MinorVersion: VersionMinor,
-	Revision:     54447,
+	Revision:     54462,
 	Timezone:     time.Now().Local().Location(),
 }
 
